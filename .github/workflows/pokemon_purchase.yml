@@ -18,7 +18,6 @@ permissions:
 concurrency:
   group: pokemon-purchase
   cancel-in-progress: false
-  queue: max
 
 jobs:
   purchase:
