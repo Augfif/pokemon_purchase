@@ -38,7 +38,7 @@ GITHUB_REF = os.environ.get("GITHUB_REF", "main").strip()
 GITHUB_WORKFLOW = os.environ.get("GITHUB_WORKFLOW", "pokemon_purchase.yml").strip()
 GITHUB_TRIGGER_TOKEN = os.environ.get("GITHUB_TRIGGER_TOKEN", "").strip()
 TRIGGER_COOLDOWN_SECONDS = int(os.environ.get("TRIGGER_COOLDOWN_SECONDS", "300"))
-RUN_LOCK_SECONDS = int(os.environ.get("RUN_LOCK_SECONDS", "3600"))
+RUN_LOCK_SECONDS = int(os.environ.get("RUN_LOCK_SECONDS", "1800"))
 
 DB_LOCK = threading.RLock()
 
@@ -283,6 +283,7 @@ def trigger_page(slug: str):
         prefix=PREFIX,
         csrf=csrf_token(),
         coupon=get_coupon(),
+        github_configured=bool(GITHUB_TRIGGER_TOKEN),
     )
 
 

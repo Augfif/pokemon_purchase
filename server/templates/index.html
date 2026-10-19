@@ -16,9 +16,10 @@
       {% else %}
         兑换码尚未填写
       {% endif %}
+      {% if not github_configured %} · GitHub 触发尚未配置{% endif %}
     </div>
     <div class="actions">
-      <button id="start" {% if coupon.state != 'active' %}disabled{% endif %}>立即开始</button>
+      <button id="start" {% if coupon.state != 'active' or not github_configured %}disabled{% endif %}>立即开始</button>
       <a class="link-button secondary" href="{{ prefix }}/admin/">管理兑换码</a>
     </div>
     <div id="message" class="message" role="status"></div>
