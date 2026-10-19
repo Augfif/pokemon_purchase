@@ -13,7 +13,10 @@
 | `POKEMON_COUPON_TOKEN` | 服务器兑换码接口 Token |
 | `WXPUSHER_SPT` | 每月一号提醒 |
 
-服务器侧的 `GITHUB_TRIGGER_TOKEN` 使用细粒度 PAT，只授予该私有仓库的 Actions 写权限。`POKEMON_COUPON_TOKEN` 与服务器 `.env` 中的 `COUPON_API_TOKEN` 必须一致。
+服务器侧的 `GITHUB_TRIGGER_TOKEN` 使用细粒度 PAT，授予该私有仓库的
+Actions 读写、Contents 读写权限；Actions 写权限用于触发购买，Contents
+写权限用于从管理页修改 `pool.db`。`POKEMON_COUPON_TOKEN` 与服务器
+`.env` 中的 `COUPON_API_TOKEN` 必须一致。
 
 ## 服务器目录
 
@@ -44,8 +47,9 @@ Docker 服务只监听本机端口 `127.0.0.1:18082`。Nginx 使用现有 `18364
 3. 构建 Docker 镜像并启动容器，使用 `-v /www/wwwroot/muyu/pokemon_purchase/shared:/app/shared` 挂载数据目录。
 4. 创建 Nginx include 引用，执行 `nginx -t` 后 reload。
 5. 打开管理页填写兑换码。
-6. 在 GitHub Actions 手动运行一次 `dry_run=true`。
-7. 检查截图和 `pool.db` 后，再由触发页执行真实任务。
+6. 打开 `/admin/accounts/` 添加账号 ID，并设置可用/冷却日期。
+7. 在 GitHub Actions 手动运行一次 `dry_run=true`。
+8. 检查截图和 `pool.db` 后，再由触发页执行真实任务。
 
 ## 运行规则
 

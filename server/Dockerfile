@@ -9,6 +9,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
+COPY account_store.py .
+COPY github_pool.py .
 COPY templates ./templates
 
 RUN mkdir -p /app/shared/data /app/shared/logs

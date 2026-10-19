@@ -20,6 +20,11 @@ import requests
 from flask import Flask, jsonify, redirect, render_template, request, session
 from werkzeug.security import check_password_hash
 
+try:
+    from .github_pool import PoolAdmin, PoolAdminError
+except ImportError:  # Docker runs app.py as a top-level module.
+    from github_pool import PoolAdmin, PoolAdminError
+
 
 LOCAL_TZ = ZoneInfo("Asia/Shanghai")
 UTC = dt.timezone.utc
@@ -37,6 +42,7 @@ GITHUB_REPO = os.environ.get("GITHUB_REPO", "pokemon_purchase").strip()
 GITHUB_REF = os.environ.get("GITHUB_REF", "main").strip()
 GITHUB_WORKFLOW = os.environ.get("GITHUB_WORKFLOW", "pokemon_purchase.yml").strip()
 GITHUB_TRIGGER_TOKEN = os.environ.get("GITHUB_TRIGGER_TOKEN", "").strip()
+GITHUB_POOL_TOKEN = os.environ.get("GITHUB_POOL_TOKEN", "").strip() or GITHUB_TRIGGER_TOKEN
 TRIGGER_COOLDOWN_SECONDS = int(os.environ.get("TRIGGER_COOLDOWN_SECONDS", "300"))
 RUN_LOCK_SECONDS = int(os.environ.get("RUN_LOCK_SECONDS", "1800"))
 
@@ -147,6 +153,14 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=BASE_URL.startswith("https://"),
     MAX_CONTENT_LENGTH=16 * 1024,
+)
+
+pool_admin = PoolAdmin(
+    GITHUB_OWNER,
+    GITHUB_REPO,
+    GITHUB_POOL_TOKEN,
+    GITHUB_REF,
+    path="pool.db",
 )
 
 
@@ -453,6 +467,84 @@ def admin_page():
         default_until=coupon.get("valid_until_local") or local_input_value(None, month_end()),
         saved=request.args.get("saved") == "1",
     )
+
+
+def _account_view(account: dict[str, Any]) -> dict[str, Any]:
+    return {
+        **account,
+        "next_available_local": local_input_value(account.get("next_available_at")),
+        "last_used_local": local_input_value(account.get("last_used_at")),
+        "lease_until_local": local_input_value(account.get("lease_until")),
+    }
+
+
+def render_accounts_page(
+    error: str | None = None,
+    saved: bool = False,
+    status: int = 200,
+):
+    if not admin_logged_in():
+        return render_template("admin_login.html", prefix=PREFIX, csrf=csrf_token())
+    accounts: list[dict[str, Any]] = []
+    if error is None:
+        try:
+            accounts = [_account_view(item) for item in pool_admin.list_accounts()]
+        except PoolAdminError as exc:
+            error = str(exc)
+    return (
+        render_template(
+            "accounts.html",
+            prefix=PREFIX,
+            csrf=csrf_token(),
+            accounts=accounts,
+            error=error,
+            saved=saved,
+        ),
+        status,
+    )
+
+
+@app.get(f"{PREFIX}/admin/accounts/")
+def accounts_page():
+    return render_accounts_page(saved=request.args.get("saved") == "1")
+
+
+@app.post(f"{PREFIX}/admin/accounts/add")
+def accounts_add():
+    if not admin_logged_in():
+        return admin_redirect()
+    if not csrf_ok(request.form.get("csrf")):
+        return "CSRF 校验失败", 403
+    account_id = request.form.get("account_id", "").strip()
+    label = request.form.get("label", "").strip()
+    try:
+        pool_admin.add_account(account_id, label)
+    except (PoolAdminError, ValueError) as exc:
+        return render_accounts_page(error=str(exc), status=400)
+    logger.info("account added account_id=%s", account_id)
+    return redirect(f"{PREFIX}/admin/accounts/?saved=1")
+
+
+@app.post(f"{PREFIX}/admin/accounts/<account_id>/update")
+def accounts_update(account_id: str):
+    if not admin_logged_in():
+        return admin_redirect()
+    if not csrf_ok(request.form.get("csrf")):
+        return "CSRF 校验失败", 403
+    status = request.form.get("status", "available")
+    next_available_at = parse_datetime(request.form.get("next_available_at"))
+    label = request.form.get("label", "")
+    try:
+        pool_admin.update_account(
+            account_id,
+            status,
+            next_available_at,
+            label=label,
+        )
+    except (PoolAdminError, ValueError) as exc:
+        return render_accounts_page(error=str(exc), status=400)
+    logger.info("account updated account_id=%s", account_id)
+    return redirect(f"{PREFIX}/admin/accounts/?saved=1")
 
 
 @app.post(f"{PREFIX}/admin/login")

@@ -124,6 +124,48 @@ class ServerTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 503)
 
+    def test_accounts_page_lists_pool(self) -> None:
+        self.login()
+        with patch.object(
+            self.app_module.pool_admin,
+            "list_accounts",
+            return_value=[
+                {
+                    "account_id": "acct-01",
+                    "label": "账号一",
+                    "status": "available",
+                    "last_used_at": None,
+                    "next_available_at": None,
+                    "lease_until": None,
+                    "last_result": None,
+                    "last_order_id": None,
+                    "updated_at": "2026-10-19T02:00:00+00:00",
+                }
+            ],
+        ):
+            response = self.client.get("/admin/accounts/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("acct-01", response.get_data(as_text=True))
+
+    def test_accounts_update_uses_manual_reset(self) -> None:
+        self.login()
+        with self.client.session_transaction() as session:
+            session["csrf"] = "account-csrf"
+        with patch.object(
+            self.app_module.pool_admin, "update_account", return_value={}
+        ) as update:
+            response = self.client.post(
+                "/admin/accounts/acct-01/update",
+                data={
+                    "csrf": "account-csrf",
+                    "label": "账号一",
+                    "status": "cooling",
+                    "next_available_at": "2026-11-19T08:00",
+                },
+            )
+        self.assertEqual(response.status_code, 302)
+        update.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

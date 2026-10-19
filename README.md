@@ -19,9 +19,13 @@
 - GitHub Secret `POKEMON_ACCOUNTS_JSON`：账号凭据；
 - 服务器管理页：保存当月兑换码；
 - GitHub Actions：领取兑换码、选择可用账号并执行任务；
+- 服务器账号池页面：查看账号状态、修改冷却日期、手动恢复为可用；
 - 每月一号：WxPusher 提醒更新兑换码，不自动下单。
 
 详细部署步骤见 [DEPLOY.md](DEPLOY.md)。
+
+账号池页面的路径是 `/muyu-pokemon/admin/accounts/`，需要先登录管理页。账号
+密码仍只放在 GitHub Secret 中；页面只管理非敏感状态和冷却日期。
 
 ## 本地使用
 
