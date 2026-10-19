@@ -104,6 +104,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except AttributeError:
+        pass
     request_id = _clean_request_id(args.request_id)
     now = pool.utc_now()
     account: dict[str, Any] | None = None
