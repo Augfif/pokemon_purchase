@@ -166,6 +166,20 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         update.assert_called_once()
 
+    def test_account_sync_dispatches(self) -> None:
+        self.login()
+        with self.client.session_transaction() as session:
+            session["csrf"] = "sync-csrf"
+        with patch.object(
+            self.app_module, "dispatch_pool_sync", return_value=None
+        ) as dispatch:
+            response = self.client.post(
+                "/admin/accounts/sync",
+                data={"csrf": "sync-csrf"},
+            )
+        self.assertEqual(response.status_code, 302)
+        dispatch.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

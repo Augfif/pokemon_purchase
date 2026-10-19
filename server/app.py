@@ -405,6 +405,28 @@ def dispatch_github(request_id: str) -> str | None:
     return f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/actions"
 
 
+def dispatch_pool_sync() -> None:
+    if not GITHUB_TRIGGER_TOKEN:
+        raise RuntimeError("github_token_missing")
+    url = (
+        f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
+        "/actions/workflows/sync_pool.yml/dispatches"
+    )
+    response = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {GITHUB_TRIGGER_TOKEN}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "muyu-pokemon-trigger/1.0",
+        },
+        json={"ref": GITHUB_REF},
+        timeout=20,
+    )
+    if response.status_code not in (200, 204):
+        raise RuntimeError(f"github_http_{response.status_code}")
+
+
 @app.post(f"{PREFIX}/api/trigger")
 def trigger():
     if not csrf_ok(request.headers.get("X-CSRF-Token")):
@@ -481,6 +503,7 @@ def _account_view(account: dict[str, Any]) -> dict[str, Any]:
 def render_accounts_page(
     error: str | None = None,
     saved: bool = False,
+    synced: bool = False,
     status: int = 200,
 ):
     if not admin_logged_in():
@@ -499,6 +522,7 @@ def render_accounts_page(
             accounts=accounts,
             error=error,
             saved=saved,
+            synced=synced,
         ),
         status,
     )
@@ -506,7 +530,27 @@ def render_accounts_page(
 
 @app.get(f"{PREFIX}/admin/accounts/")
 def accounts_page():
-    return render_accounts_page(saved=request.args.get("saved") == "1")
+    return render_accounts_page(
+        saved=request.args.get("saved") == "1",
+        synced=request.args.get("synced") == "1",
+    )
+
+
+@app.post(f"{PREFIX}/admin/accounts/sync")
+def accounts_sync():
+    if not admin_logged_in():
+        return admin_redirect()
+    if not csrf_ok(request.form.get("csrf")):
+        return "CSRF 校验失败", 403
+    try:
+        dispatch_pool_sync()
+    except Exception as exc:
+        return render_accounts_page(
+            error=f"无法启动账号同步任务：{exc.__class__.__name__}",
+            status=502,
+        )
+    logger.info("account pool sync dispatched")
+    return redirect(f"{PREFIX}/admin/accounts/?synced=1")
 
 
 @app.post(f"{PREFIX}/admin/accounts/add")

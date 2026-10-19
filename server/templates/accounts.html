@@ -10,11 +10,16 @@
       {% if error %}账号池读取失败{% else %}账号池已连接{% endif %}
     </div>
     {% if saved %}<div class="message success">账号状态已保存。</div>{% endif %}
+    {% if synced %}<div class="message success">同步任务已提交。等 Actions 完成后刷新本页即可看到账号 ID。</div>{% endif %}
     {% if error %}<div class="message error">{{ error }}</div>{% endif %}
     {% if not error and not accounts %}<div class="message">账号池为空。先在下方添加账号 ID，再到 GitHub Secret 填入对应凭据。</div>{% endif %}
     <div class="actions">
       <a class="link-button secondary" href="{{ prefix }}/admin/">管理兑换码</a>
       <a class="link-button secondary" href="{{ prefix }}/admin/accounts/">刷新账号池</a>
+      <form method="post" action="{{ prefix }}/admin/accounts/sync" style="margin: 0">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="secondary" type="submit">从 GitHub Secret 同步账号 ID</button>
+      </form>
     </div>
   </section>
 

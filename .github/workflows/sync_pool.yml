@@ -1,0 +1,49 @@
+name: Sync Account Pool
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pokemon-purchase
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Sync account IDs
+        env:
+          POKEMON_ACCOUNTS_JSON: ${{ secrets.POKEMON_ACCOUNTS_JSON }}
+        run: python sync_pool.py --db pool.db
+
+      - name: Persist pool.db
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pool.db
+          if git diff --cached --quiet; then
+            echo "pool.db unchanged"
+            exit 0
+          fi
+          git commit -m "Sync pokemon account pool [skip ci]"
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Could not persist pool.db"
+          exit 1
