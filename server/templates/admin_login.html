@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}管理远端兑换码{% endblock %}
+{% block content %}
+  <h1>管理兑换码。</h1>
+  <p>这里只允许管理员登录。兑换码不会发送到 GitHub 的输入或提交记录。</p>
+  <section class="panel">
+    <form method="post" action="{{ prefix }}/admin/login">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label>用户名<input name="username" autocomplete="username" required></label>
+      <label>密码<input type="password" name="password" autocomplete="current-password" required></label>
+      {% if error %}<div class="message error">{{ error }}</div>{% endif %}
+      <button type="submit">登录</button>
+    </form>
+  </section>
+{% endblock %}

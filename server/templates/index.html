@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}立即触发 · 52Pokemon{% endblock %}
+{% block content %}
+  <h1>准备一次兑换。</h1>
+  <p>点击后服务器会请求 GitHub Actions，从账号池中取一个已冷却满 30 天的账号。</p>
+
+  <section class="panel">
+    <div class="status">
+      <span class="dot {{ 'ok' if coupon.state == 'active' else 'bad' if coupon.state in ['expired', 'missing'] else 'warn' }}"></span>
+      {% if coupon.state == 'active' %}
+        兑换码已就绪
+      {% elif coupon.state == 'expired' %}
+        兑换码已过期
+      {% elif coupon.state == 'not_started' %}
+        兑换码尚未生效
+      {% else %}
+        兑换码尚未填写
+      {% endif %}
+    </div>
+    <div class="actions">
+      <button id="start" {% if coupon.state != 'active' %}disabled{% endif %}>立即开始</button>
+      <a class="link-button secondary" href="{{ prefix }}/admin/">管理兑换码</a>
+    </div>
+    <div id="message" class="message" role="status"></div>
+    <div class="meta">
+      <div><strong>冷却规则</strong><span>成功使用后 30 天不再选中</span></div>
+      <div><strong>执行位置</strong><span>GitHub Actions</span></div>
+    </div>
+  </section>
+
+  <script>
+    const button = document.getElementById("start");
+    const message = document.getElementById("message");
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      message.className = "message";
+      message.textContent = "正在提交任务…";
+      try {
+        const response = await fetch("{{ prefix }}/api/trigger", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": {{ csrf|tojson }}
+          },
+          body: "{}"
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+          message.className = "message error";
+          message.textContent = data.error || "提交失败";
+          button.disabled = false;
+          return;
+        }
+        message.className = "message success";
+        message.textContent = data.message;
+        if (data.run_url) {
+          const link = document.createElement("a");
+          link.className = "link-button secondary";
+          link.href = data.run_url;
+          link.target = "_blank";
+          link.rel = "noopener";
+          link.textContent = "查看 GitHub 运行";
+          message.append(" ");
+          message.append(link);
+        }
+      } catch (error) {
+        message.className = "message error";
+        message.textContent = "网络请求失败，请稍后重试";
+        button.disabled = false;
+      }
+    });
+  </script>
+{% endblock %}

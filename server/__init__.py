@@ -1,0 +1,1 @@
+"""Server-side trigger application."""

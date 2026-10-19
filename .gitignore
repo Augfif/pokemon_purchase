@@ -1,0 +1,11 @@
+__pycache__/
+.venv/
+.env
+server/shared/
+.pytest_cache/
+screenshots/
+vendor/
+.chrome-profile/
+.chrome-profile-auto/
+.chrome-profiles/
+chromedriver.exe

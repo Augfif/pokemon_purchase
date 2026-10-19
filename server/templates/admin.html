@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}管理兑换码 · 52Pokemon{% endblock %}
+{% block content %}
+  <h1>本月兑换码。</h1>
+  <p>更新后，下一次触发和 Actions 运行会读取新值。旧兑换码仍保留在服务器归档中。</p>
+  <section class="panel">
+    <div class="status">
+      <span class="dot {{ 'ok' if coupon.state == 'active' else 'bad' if coupon.state in ['expired', 'missing'] else 'warn' }}"></span>
+      {% if coupon.state == 'active' %}当前有效{% elif coupon.state == 'expired' %}已过期{% elif coupon.state == 'not_started' %}尚未生效{% else %}尚未填写{% endif %}
+      · {{ code_preview }}
+    </div>
+    {% if saved %}<div class="message success">兑换码已保存。</div>{% endif %}
+    <form method="post" action="{{ prefix }}/admin/coupon">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label>新兑换码<input name="code" maxlength="128" autocomplete="off" required></label>
+      <label>生效时间<input type="datetime-local" name="valid_from" value="{{ default_from }}" required></label>
+      <label>失效时间<input type="datetime-local" name="valid_until" value="{{ default_until }}" required></label>
+      <div class="actions">
+        <button type="submit">保存兑换码</button>
+        <a class="link-button secondary" href="{{ prefix }}/admin/">刷新状态</a>
+      </div>
+    </form>
+    <form method="post" action="{{ prefix }}/admin/logout" style="margin-top: 18px">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="secondary" type="submit">退出管理</button>
+    </form>
+  </section>
+{% endblock %}

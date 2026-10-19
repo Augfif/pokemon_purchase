@@ -1,0 +1,97 @@
+name: 52Pokemon Purchase
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: "由服务器触发页生成的请求编号"
+        required: false
+        default: ""
+      dry_run:
+        description: "只检查到零元为止，不点击立即订购"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pokemon-purchase
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  purchase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      POKEMON_HEADLESS: "1"
+      POKEMON_LOGIN_WAIT: "60"
+      POKEMON_STEP_DELAY: "0.4"
+      POKEMON_PROFILE_DIR: ${{ runner.temp }}/pokemon-chrome-profile
+      POKEMON_COUPON_URL: ${{ secrets.POKEMON_COUPON_URL }}
+      POKEMON_COUPON_TOKEN: ${{ secrets.POKEMON_COUPON_TOKEN }}
+      POKEMON_ACCOUNTS_JSON: ${{ secrets.POKEMON_ACCOUNTS_JSON }}
+      POKEMON_RESULT_FILE: ${{ runner.temp }}/pokemon-result.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          chrome-version: stable
+          install-dependencies: true
+          install-chromedriver: true
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run purchase
+        id: run_purchase
+        env:
+          POKEMON_CHROME_BINARY: ${{ steps.chrome.outputs.chrome-path }}
+          POKEMON_CHROMEDRIVER: ${{ steps.chrome.outputs.chromedriver-path }}
+        run: |
+          args=(--db pool.db --request-id "${{ inputs.request_id }}" --result-file "$POKEMON_RESULT_FILE")
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          python runner.py "${args[@]}"
+
+      - name: Persist account pool
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pool.db
+          if git diff --cached --quiet; then
+            echo "pool.db unchanged"
+            exit 0
+          fi
+          git commit -m "Update pokemon pool [skip ci]"
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Could not persist pool.db"
+          exit 1
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokemon-failure-${{ github.run_id }}
+          path: screenshots/
+          retention-days: 3
+          if-no-files-found: ignore

@@ -1,0 +1,27 @@
+name: Monthly Coupon Reminder
+
+on:
+  schedule:
+    - cron: "5 0 1 * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Send WxPusher reminder
+        env:
+          WXPUSHER_SPT: ${{ secrets.WXPUSHER_SPT }}
+          POKEMON_ADMIN_URL: https://18364454.xyz/muyu-pokemon/admin/
+        run: python notify_coupon.py

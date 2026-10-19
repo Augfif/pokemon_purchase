@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>{% block title %}52Pokemon{% endblock %}</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #11151d;
+        --panel: #1a2230;
+        --panel-2: #222d3d;
+        --text: #edf2f7;
+        --muted: #9aa9bb;
+        --accent: #f6c453;
+        --accent-2: #ffdf8b;
+        --danger: #ff7a86;
+        --ok: #7ee2b8;
+        --line: rgba(255, 255, 255, 0.1);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 15% 10%, rgba(246, 196, 83, 0.12), transparent 32rem),
+          radial-gradient(circle at 90% 90%, rgba(78, 164, 255, 0.12), transparent 28rem),
+          var(--bg);
+        color: var(--text);
+        font: 16px/1.6 "Segoe UI", "Microsoft YaHei", sans-serif;
+      }
+      .wrap { width: min(760px, calc(100% - 32px)); margin: 0 auto; padding: 56px 0; }
+      .eyebrow {
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      h1 { margin: 10px 0 8px; font-size: clamp(30px, 6vw, 52px); line-height: 1.05; }
+      h2 { margin: 0 0 12px; font-size: 22px; }
+      p { color: var(--muted); }
+      .panel {
+        margin-top: 28px;
+        padding: 26px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: linear-gradient(145deg, rgba(34, 45, 61, 0.96), rgba(23, 30, 42, 0.96));
+        box-shadow: 0 22px 70px rgba(0, 0, 0, 0.28);
+      }
+      .status {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        padding: 5px 11px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+      .dot.ok { background: var(--ok); box-shadow: 0 0 16px rgba(126, 226, 184, 0.5); }
+      .dot.warn { background: var(--accent); box-shadow: 0 0 16px rgba(246, 196, 83, 0.5); }
+      .dot.bad { background: var(--danger); box-shadow: 0 0 16px rgba(255, 122, 134, 0.5); }
+      button, .link-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 48px;
+        padding: 0 20px;
+        border: 0;
+        border-radius: 12px;
+        background: var(--accent);
+        color: #1a1a1a;
+        font: inherit;
+        font-weight: 700;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 160ms ease, filter 160ms ease;
+      }
+      button:hover, .link-button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+      button:disabled { cursor: wait; filter: grayscale(0.5); opacity: 0.6; transform: none; }
+      .secondary { background: transparent; color: var(--text); border: 1px solid var(--line); }
+      .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+      .message { min-height: 24px; margin-top: 18px; color: var(--muted); }
+      .message.error { color: var(--danger); }
+      .message.success { color: var(--ok); }
+      .meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
+      .meta div { padding: 13px 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(0, 0, 0, 0.12); }
+      .meta strong { display: block; color: var(--text); font-size: 14px; }
+      .meta span { color: var(--muted); font-size: 13px; }
+      form { display: grid; gap: 16px; }
+      label { display: grid; gap: 7px; color: var(--muted); font-size: 14px; }
+      input {
+        width: 100%;
+        padding: 12px 13px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        outline: none;
+        background: rgba(0, 0, 0, 0.2);
+        color: var(--text);
+        font: inherit;
+      }
+      input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(246, 196, 83, 0.16); }
+      code { color: var(--accent-2); }
+      footer { margin-top: 24px; color: var(--muted); font-size: 13px; }
+      @media (max-width: 560px) {
+        .wrap { padding: 30px 0; }
+        .panel { padding: 19px; border-radius: 16px; }
+        .meta { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <div class="eyebrow">52Pokemon · Account Pool</div>
+      {% block content %}{% endblock %}
+      <footer>账号状态由 GitHub 私有仓库管理；兑换码只保存在服务器。</footer>
+    </main>
+  </body>
+</html>
