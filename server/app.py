@@ -449,8 +449,8 @@ def admin_page():
         csrf=csrf_token(),
         coupon=coupon,
         code_preview=coupon.get("code_preview", "••••"),
-        default_from=local_input_value(None, now_local),
-        default_until=local_input_value(None, month_end()),
+        default_from=coupon.get("valid_from_local") or local_input_value(None, now_local),
+        default_until=coupon.get("valid_until_local") or local_input_value(None, month_end()),
         saved=request.args.get("saved") == "1",
     )
 
