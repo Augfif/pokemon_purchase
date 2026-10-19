@@ -29,6 +29,10 @@
   current -> releases/...
 ```
 
+首次部署生成的随机管理员密码和触发链接分别保存在
+`shared/config/muyu-admin-password.txt` 和
+`shared/config/muyu-trigger-url.txt`，权限均为 `600`。
+
 现有 `/www/wwwroot/muyu` 下的其他项目不修改、不删除。
 
 Docker 服务只监听本机端口 `127.0.0.1:18082`。Nginx 使用现有 `18364454.xyz` 站点的扩展配置，将 `/muyu-pokemon/` 反向代理到该端口；不修改原有 server 块。
