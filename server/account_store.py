@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 import sqlite3
 import tempfile
 from pathlib import Path
@@ -90,8 +91,8 @@ def add_account(
 ) -> bytes:
     account_id = account_id.strip()
     label = label.strip() or account_id
-    if not account_id or len(account_id) > 80:
-        raise StoreError("账号 ID 不能为空且不能超过 80 个字符")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", account_id):
+        raise StoreError("账号 ID 只能包含字母、数字、下划线、点和横线，最长 80 个字符")
     current = _iso(now)
 
     def operation(connection: sqlite3.Connection) -> None:
