@@ -26,6 +26,7 @@ def main() -> int:
             "content": content,
             "summary": "52Pokemon 兑换码更新提醒",
             "contentType": 2,
+            "url": admin_url,
             "spt": token,
         },
         ensure_ascii=False,
