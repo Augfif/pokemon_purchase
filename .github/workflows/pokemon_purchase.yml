@@ -27,11 +27,9 @@ jobs:
       POKEMON_HEADLESS: "1"
       POKEMON_LOGIN_WAIT: "60"
       POKEMON_STEP_DELAY: "0.4"
-      POKEMON_PROFILE_DIR: ${{ runner.temp }}/pokemon-chrome-profile
       POKEMON_COUPON_URL: ${{ secrets.POKEMON_COUPON_URL }}
       POKEMON_COUPON_TOKEN: ${{ secrets.POKEMON_COUPON_TOKEN }}
       POKEMON_ACCOUNTS_JSON: ${{ secrets.POKEMON_ACCOUNTS_JSON }}
-      POKEMON_RESULT_FILE: ${{ runner.temp }}/pokemon-result.json
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,6 +57,8 @@ jobs:
         env:
           POKEMON_CHROME_BINARY: ${{ steps.chrome.outputs.chrome-path }}
           POKEMON_CHROMEDRIVER: ${{ steps.chrome.outputs.chromedriver-path }}
+          POKEMON_PROFILE_DIR: ${{ runner.temp }}/pokemon-chrome-profile
+          POKEMON_RESULT_FILE: ${{ runner.temp }}/pokemon-result.json
         run: |
           args=(--db pool.db --request-id "${{ inputs.request_id }}" --result-file "$POKEMON_RESULT_FILE")
           if [ "${{ inputs.dry_run }}" = "true" ]; then
