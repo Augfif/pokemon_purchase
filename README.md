@@ -11,6 +11,10 @@
 7. 确认月付为 0 后点击“立即订购”；
 8. 进入订单详情并返回订单号。
 
+默认站点使用站点配置中标记的永久官网 `https://love3.p6m6.com`。旧域名
+`web1.52pokemon.cc` 当前的登录前端会把认证地址拼成
+`undefined/users/authenticate`，提交后字段被清空且不会跳转。
+
 ## 服务器触发与账号池
 
 生产运行采用以下分工：
@@ -83,6 +87,9 @@ python pool.py --db pool.db --stats
 
 - 不把账号、密码、Cookie、Token 或兑换码写入仓库。
 - 不绕过验证码；无头运行遇到验证码时账号会标记为 `needs_attention`。
+- 如果站点显示滑块/人机安全验证，GitHub Actions 会以
+  `security_verification_required` 快速停止；需要可见浏览器或已通过验证的
+  会话才能继续。
 - 每次 Actions 运行会在 `pokemon-screenshots-<run_id>` 产物中保留页面截图，便于排查登录或网络问题。
 - 为适配站点当前证书异常，Chrome 启用了证书错误忽略参数；这仅作用于脚本自己的浏览器配置。
 - 实际下单前以订单页金额为准；`--dry-run` 不会点击“立即订购”。
