@@ -98,6 +98,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--step-delay", type=float, default=None)
+    parser.add_argument(
+        "--base-url",
+        default=os.environ.get("POKEMON_BASE_URL", ""),
+        help="购买网站基础地址；服务器配置或 Actions 输入会覆盖默认值",
+    )
     parser.add_argument("--result-file", default=os.environ.get("POKEMON_RESULT_FILE", ""))
     return parser.parse_args()
 
@@ -120,6 +125,13 @@ def main() -> int:
         coupon = _fetch_coupon(args.coupon_url, args.coupon_token)
         redeem_code = str(coupon["code"]).strip()
         secrets_to_redact.append(redeem_code)
+        base_url = (
+            args.base_url
+            or str(coupon.get("base_url", "")).strip()
+            or "https://web1.52pokemon.cc"
+        )
+        os.environ["POKEMON_BASE_URL"] = base_url
+        purchase.set_base_url(base_url)
 
         raw_accounts = pool.parse_accounts_json(
             os.environ.get("POKEMON_ACCOUNTS_JSON", "")
@@ -172,6 +184,7 @@ def main() -> int:
             dry_run=args.dry_run,
             step_delay=args.step_delay,
             non_interactive=True,
+            base_url=base_url,
         )
         if args.dry_run:
             pool.mark_dry_run(connection, account["account_id"], request_id)
@@ -180,6 +193,7 @@ def main() -> int:
                 "",
                 f"- 账号：`{account['label']}`",
                 "- 模式：dry-run，未点击“立即订购”",
+                f"- 网站：`{base_url}`",
                 "- 账号状态：保持可用",
             ]
         else:
@@ -193,6 +207,7 @@ def main() -> int:
                 "## 52Pokemon 完成",
                 "",
                 f"- 账号：`{account['label']}`",
+                f"- 网站：`{base_url}`",
                 f"- 订单号：`{order_id or '未提取到'}`",
                 f"- 下次可用：`{pool.to_iso(next_available)}`",
             ]
@@ -205,6 +220,7 @@ def main() -> int:
                         "ok": True,
                         "dry_run": args.dry_run,
                         "account": account["label"],
+                        "base_url": base_url,
                         "order_id": order_id,
                     },
                     ensure_ascii=False,
