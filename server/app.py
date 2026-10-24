@@ -14,6 +14,7 @@ import uuid
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import requests
@@ -32,6 +33,7 @@ PREFIX = os.environ.get("URL_PREFIX", "").rstrip("/")
 DB_PATH = Path(os.environ.get("APP_DB_PATH", "/app/shared/data/app.sqlite3"))
 LOG_PATH = Path(os.environ.get("APP_LOG_PATH", "/app/shared/logs/app.log"))
 BASE_URL = os.environ.get("BASE_URL", "https://18364454.xyz/muyu-pokemon").rstrip("/")
+DEFAULT_POKEMON_BASE_URL = "https://web1.52pokemon.cc"
 TRIGGER_SLUG = os.environ.get("TRIGGER_SLUG", "").strip()
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD_HASH = os.environ.get("ADMIN_PASSWORD_HASH", "").strip()
@@ -118,6 +120,12 @@ def initialize_database() -> None:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     ip TEXT NOT NULL,
                     created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
                 );
                 """
             )
@@ -221,6 +229,50 @@ def get_coupon() -> dict[str, Any]:
     }
 
 
+def normalize_site_url(value: str) -> str:
+    candidate = value.strip().rstrip("/")
+    parsed = urlparse(candidate)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or len(candidate) > 500
+    ):
+        raise ValueError("网站地址必须是 http:// 或 https:// 开头的完整地址")
+    return candidate
+
+
+def get_pokemon_base_url() -> str:
+    with DB_LOCK:
+        connection = db_connection()
+        try:
+            row = connection.execute(
+                "SELECT value FROM settings WHERE key = 'pokemon_base_url'"
+            ).fetchone()
+        finally:
+            connection.close()
+    return row["value"] if row else DEFAULT_POKEMON_BASE_URL
+
+
+def set_pokemon_base_url(value: str) -> str:
+    normalized = normalize_site_url(value)
+    with DB_LOCK:
+        connection = db_connection()
+        try:
+            connection.execute(
+                """
+                INSERT INTO settings(key, value, updated_at)
+                VALUES ('pokemon_base_url', ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = excluded.updated_at
+                """,
+                (normalized, to_utc_iso(utc_now())),
+            )
+        finally:
+            connection.close()
+    return normalized
+
+
 def admin_logged_in() -> bool:
     return bool(session.get("admin_logged_in"))
 
@@ -250,6 +302,7 @@ def health():
             "coupon_configured": coupon["state"] != "missing",
             "coupon_state": coupon["state"],
             "github_configured": bool(GITHUB_TRIGGER_TOKEN),
+            "pokemon_base_url": get_pokemon_base_url(),
         }
     )
 
@@ -283,6 +336,7 @@ def coupon_api():
             "code": row["code"],
             "valid_from": row["valid_from"],
             "valid_until": row["valid_until"],
+            "base_url": get_pokemon_base_url(),
         }
     )
 
@@ -298,6 +352,7 @@ def trigger_page(slug: str):
         csrf=csrf_token(),
         coupon=get_coupon(),
         github_configured=bool(GITHUB_TRIGGER_TOKEN),
+        pokemon_base_url=get_pokemon_base_url(),
     )
 
 
@@ -376,6 +431,7 @@ def save_request(
 def dispatch_github(request_id: str) -> str | None:
     if not GITHUB_TRIGGER_TOKEN:
         raise RuntimeError("github_token_missing")
+    pokemon_base_url = get_pokemon_base_url()
     url = (
         f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
         f"/actions/workflows/{GITHUB_WORKFLOW}/dispatches"
@@ -390,7 +446,11 @@ def dispatch_github(request_id: str) -> str | None:
         },
         json={
             "ref": GITHUB_REF,
-            "inputs": {"request_id": request_id, "dry_run": "false"},
+            "inputs": {
+                "request_id": request_id,
+                "dry_run": "false",
+                "base_url": pokemon_base_url,
+            },
         },
         timeout=20,
     )
@@ -488,7 +548,23 @@ def admin_page():
         default_from=coupon.get("valid_from_local") or local_input_value(None, now_local),
         default_until=coupon.get("valid_until_local") or local_input_value(None, month_end()),
         saved=request.args.get("saved") == "1",
+        site_saved=request.args.get("site_saved") == "1",
+        pokemon_base_url=get_pokemon_base_url(),
     )
+
+
+@app.post(f"{PREFIX}/admin/settings")
+def admin_settings():
+    if not admin_logged_in():
+        return admin_redirect()
+    if not csrf_ok(request.form.get("csrf")):
+        return "CSRF 校验失败", 403
+    try:
+        set_pokemon_base_url(request.form.get("base_url", ""))
+    except ValueError as exc:
+        return str(exc), 400
+    logger.info("pokemon base url updated")
+    return redirect(f"{PREFIX}/admin/?site_saved=1")
 
 
 def _account_view(account: dict[str, Any]) -> dict[str, Any]:
