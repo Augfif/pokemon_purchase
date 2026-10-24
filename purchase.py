@@ -10,6 +10,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 from selenium import webdriver
 from selenium.common.exceptions import (
@@ -25,10 +26,8 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 
 
-# The old web1.52pokemon.cc bundle currently posts to
-# ``undefined/users/authenticate``. The site's own permanent-site banner points
-# to this domain.
-BASE_URL = os.environ.get("POKEMON_BASE_URL", "https://love3.p6m6.com").rstrip("/")
+DEFAULT_BASE_URL = "https://web1.52pokemon.cc"
+BASE_URL = os.environ.get("POKEMON_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
 PROJECT_DIR = Path(__file__).resolve().parent
 
 
@@ -106,6 +105,21 @@ class PurchaseFailure(Exception):
         super().__init__(message)
         self.code = code
         self.retryable = retryable
+
+
+def set_base_url(value: str) -> str:
+    """Change the site origin for one run without editing the workflow."""
+    global BASE_URL
+    candidate = value.strip().rstrip("/")
+    parsed = urlparse(candidate)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise PurchaseFailure(
+            "网站基础地址必须是 http:// 或 https:// 开头的完整地址",
+            code="invalid_base_url",
+            retryable=False,
+        )
+    BASE_URL = candidate
+    return BASE_URL
 PAGE_ERROR_MARKERS = (
     "无法访问此站点",
     "502 Bad Gateway",
@@ -841,6 +855,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="不等待键盘输入，适合 GitHub Actions",
     )
+    parser.add_argument(
+        "--base-url",
+        default=os.environ.get("POKEMON_BASE_URL", DEFAULT_BASE_URL),
+        help="购买网站基础地址，默认 https://web1.52pokemon.cc",
+    )
     return parser.parse_args(argv)
 
 
@@ -849,12 +868,15 @@ def run(
     dry_run: bool = False,
     step_delay: float | None = None,
     non_interactive: bool = False,
+    base_url: str | None = None,
 ) -> str | None:
     """Run one purchase and return the detected order ID.
 
     A dry run stops after the zero-price check and never clicks the order button.
     """
 
+    if base_url:
+        set_base_url(base_url)
     code = (redeem_code or os.environ.get("POKEMON_REDEEM_CODE", "")).strip()
     if not code:
         raise PurchaseFailure(
@@ -919,6 +941,7 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=args.dry_run,
             step_delay=args.step_delay,
             non_interactive=args.non_interactive,
+            base_url=args.base_url,
         )
     except PurchaseFailure as exc:
         raise SystemExit(str(exc)) from exc
