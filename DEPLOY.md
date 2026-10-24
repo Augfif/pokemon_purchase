@@ -47,11 +47,13 @@ Docker 服务只监听本机端口 `127.0.0.1:18082`。Nginx 使用现有 `18364
 3. 构建 Docker 镜像并启动容器，使用 `-v /www/wwwroot/muyu/pokemon_purchase/shared:/app/shared` 挂载数据目录。
 4. 创建 Nginx include 引用，执行 `nginx -t` 后 reload。
 5. 打开管理页填写兑换码。
-6. 打开 `/admin/accounts/` 添加账号 ID，并设置可用/冷却日期。
+6. 在管理页“购买网站地址”填写当前可用域名，默认
+   `https://web1.52pokemon.cc`；服务器触发和手动 Actions 都会使用该地址。
+7. 打开 `/admin/accounts/` 添加账号 ID，并设置可用/冷却日期。
    如果账号已经在 `POKEMON_ACCOUNTS_JSON` 中，点击“从 GitHub Secret 同步
    账号 ID”，等待 `Sync Account Pool` 完成即可。
-7. 在 GitHub Actions 手动运行一次 `dry_run=true`。
-8. 检查截图和 `pool.db` 后，再由触发页执行真实任务。
+8. 在 GitHub Actions 手动运行一次 `dry_run=true`。
+9. 检查截图和 `pool.db` 后，再由触发页执行真实任务。
 
 ## 运行规则
 
