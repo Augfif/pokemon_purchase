@@ -48,6 +48,8 @@ Docker 服务只监听本机端口 `127.0.0.1:18082`。Nginx 使用现有 `18364
 4. 创建 Nginx include 引用，执行 `nginx -t` 后 reload。
 5. 打开管理页填写兑换码。
 6. 打开 `/admin/accounts/` 添加账号 ID，并设置可用/冷却日期。
+   如果账号已经在 `POKEMON_ACCOUNTS_JSON` 中，点击“从 GitHub Secret 同步
+   账号 ID”，等待 `Sync Account Pool` 完成即可。
 7. 在 GitHub Actions 手动运行一次 `dry_run=true`。
 8. 检查截图和 `pool.db` 后，再由触发页执行真实任务。
 
@@ -57,4 +59,5 @@ Docker 服务只监听本机端口 `127.0.0.1:18082`。Nginx 使用现有 `18364
 - 登录、验证码或凭据错误：账号标记为 `needs_attention`，不消耗冷却。
 - 站点临时故障：账号释放为 `available`，下次可以重试。
 - 每月一号北京时间 08:05：WxPusher 提醒更新兑换码，不自动下单。
-- 失败截图和日志只保留在私有产物或服务器目录，不输出兑换码和账号密码。
+- 成功、dry-run 和失败都会上传 `pokemon-screenshots-<run_id>` 截图产物；截图只保留在私有 Actions 产物中，不提交到仓库。
+- 截图和日志不输出兑换码和账号密码。
