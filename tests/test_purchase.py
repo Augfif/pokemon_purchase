@@ -27,6 +27,16 @@ class FakeDriver:
 
 
 class PurchaseScreenshotTests(unittest.TestCase):
+    def test_base_url_can_change_at_runtime(self) -> None:
+        original = purchase.BASE_URL
+        try:
+            changed = purchase.set_base_url("https://web2.example.com/")
+            self.assertEqual(changed, "https://web2.example.com")
+            with self.assertRaises(purchase.PurchaseFailure):
+                purchase.set_base_url("web2.example.com")
+        finally:
+            purchase.set_base_url(original)
+
     def test_slider_verification_is_reported_in_headless_mode(self) -> None:
         driver = FakeDriver()
         driver.page_source = '<script src="/_guard/html.js?js=slider_html"></script>'
