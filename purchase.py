@@ -110,6 +110,21 @@ def pause(label: str) -> None:
     time.sleep(STEP_DELAY_SECONDS)
 
 
+def save_page_screenshot(driver: webdriver.Chrome, label: str) -> Path | None:
+    """Save a browser screenshot without masking the original script failure."""
+    safe_label = re.sub(r"[^A-Za-z0-9_.-]+", "-", label).strip("-") or "page"
+    screenshot_dir = PROJECT_DIR / "screenshots"
+    screenshot_path = screenshot_dir / f"{safe_label}-{time.time_ns()}.png"
+    try:
+        screenshot_dir.mkdir(parents=True, exist_ok=True)
+        driver.save_screenshot(str(screenshot_path))
+        print(f"页面截图：{screenshot_path}")
+        return screenshot_path
+    except Exception as exc:
+        print(f"页面截图失败：{exc.__class__.__name__}")
+        return None
+
+
 def is_security_interstitial(driver: webdriver.Chrome) -> bool:
     """识别 Chrome 证书提示页，不自动绕过它。"""
     try:
@@ -799,17 +814,25 @@ def run(
 
     driver = setup_driver()
     try:
-        login_if_needed(driver, non_interactive=non_interactive)
-        order_id = prepare_order(driver, code, dry_run=dry_run)
-        if not non_interactive:
-            try:
-                input(
-                    "浏览器已停在支付前页面，按 Enter 退出脚本"
-                    "（不要在此处输入支付信息）："
-                )
-            except EOFError:
-                print("非交互运行，脚本结束。")
-        return order_id
+        try:
+            login_if_needed(driver, non_interactive=non_interactive)
+            order_id = prepare_order(driver, code, dry_run=dry_run)
+            save_page_screenshot(
+                driver,
+                "dry-run-success" if dry_run else "purchase-success",
+            )
+            if not non_interactive:
+                try:
+                    input(
+                        "浏览器已停在支付前页面，按 Enter 退出脚本"
+                        "（不要在此处输入支付信息）："
+                    )
+                except EOFError:
+                    print("非交互运行，脚本结束。")
+            return order_id
+        except BaseException:
+            save_page_screenshot(driver, "purchase-failure")
+            raise
     except TimeoutException as exc:
         raise PurchaseFailure(
             f"页面等待超时，请检查登录状态或页面结构：{exc}",
