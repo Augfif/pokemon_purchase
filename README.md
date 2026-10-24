@@ -19,7 +19,9 @@
 - GitHub Secret `POKEMON_ACCOUNTS_JSON`：账号凭据；
 - 服务器管理页：保存当月兑换码；
 - GitHub Actions：领取兑换码、选择可用账号并执行任务；
+- Actions 产物：成功、dry-run 和失败时都会上传浏览器截图；
 - 服务器账号池页面：查看账号状态、修改冷却日期、手动恢复为可用；
+- 服务器账号池页面可以从 `POKEMON_ACCOUNTS_JSON` 同步账号 ID；
 - 每月一号：WxPusher 提醒更新兑换码，不自动下单。
 
 详细部署步骤见 [DEPLOY.md](DEPLOY.md)。
@@ -81,5 +83,6 @@ python pool.py --db pool.db --stats
 
 - 不把账号、密码、Cookie、Token 或兑换码写入仓库。
 - 不绕过验证码；无头运行遇到验证码时账号会标记为 `needs_attention`。
+- 每次 Actions 运行会在 `pokemon-screenshots-<run_id>` 产物中保留页面截图，便于排查登录或网络问题。
 - 为适配站点当前证书异常，Chrome 启用了证书错误忽略参数；这仅作用于脚本自己的浏览器配置。
 - 实际下单前以订单页金额为准；`--dry-run` 不会点击“立即订购”。
