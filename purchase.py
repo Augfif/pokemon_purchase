@@ -25,7 +25,10 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 
 
-BASE_URL = os.environ.get("POKEMON_BASE_URL", "https://web1.52pokemon.cc").rstrip("/")
+# The old web1.52pokemon.cc bundle currently posts to
+# ``undefined/users/authenticate``. The site's own permanent-site banner points
+# to this domain.
+BASE_URL = os.environ.get("POKEMON_BASE_URL", "https://love3.p6m6.com").rstrip("/")
 PROJECT_DIR = Path(__file__).resolve().parent
 
 
@@ -80,6 +83,14 @@ SECURITY_MARKERS = (
     "your connection is not private",
     "net::err_cert",
 )
+SECURITY_VERIFICATION_MARKERS = (
+    "Security Verification",
+    "slider_html",
+    "puzzle-container",
+    "滑块",
+    "安全验证",
+    "人机验证",
+)
 LOGIN_ERROR_MARKERS = (
     "密码错误",
     "账号或密码错误",
@@ -99,6 +110,10 @@ PAGE_ERROR_MARKERS = (
     "无法访问此站点",
     "502 Bad Gateway",
     "ERR_CONNECTION_CLOSED",
+    "ERR_CONNECTION_TIMED_OUT",
+    "ERR_NAME_NOT_RESOLVED",
+    "ERR_PROXY_CONNECTION_FAILED",
+    "ERR_INTERNET_DISCONNECTED",
 )
 
 
@@ -166,11 +181,50 @@ def wait_for_manual_security_action(driver: webdriver.Chrome) -> None:
     pause("安全提示已处理，页面继续加载")
 
 
+def is_security_verification(driver: webdriver.Chrome) -> bool:
+    try:
+        content = " ".join(
+            (
+                driver.title or "",
+                driver.current_url or "",
+                driver.page_source[:20000],
+            )
+        ).lower()
+    except WebDriverException:
+        return False
+    return any(marker.lower() in content for marker in SECURITY_VERIFICATION_MARKERS)
+
+
+def wait_for_security_verification(driver: webdriver.Chrome) -> None:
+    """Allow a visible browser to complete a manual slider verification."""
+    if not is_security_verification(driver):
+        return
+    if os.environ.get("POKEMON_HEADLESS", "0").lower() in {"1", "true", "yes"}:
+        raise PurchaseFailure(
+            "当前站点要求完成滑块/人机安全验证，GitHub Actions 无头浏览器无法自动通过",
+            code="security_verification_required",
+            retryable=False,
+        )
+    print("检测到滑块/人机安全验证，请在浏览器中手动完成，脚本会等待页面恢复。")
+    try:
+        WebDriverWait(driver, LOGIN_WAIT_SECONDS).until(
+            lambda current: not is_security_verification(current)
+        )
+    except TimeoutException as exc:
+        raise PurchaseFailure(
+            "安全验证未完成，脚本已停止",
+            code="security_verification_timeout",
+            retryable=False,
+        ) from exc
+    pause("安全验证已通过")
+
+
 def open_page(driver: webdriver.Chrome, url: str, label: str) -> None:
     """打开页面并处理可能出现的安全提示。"""
     driver.get(url)
     pause(label)
     wait_for_manual_security_action(driver)
+    wait_for_security_verification(driver)
 
 
 def setup_driver() -> webdriver.Chrome:
@@ -245,6 +299,7 @@ def wait_for_login_result(driver: webdriver.Chrome) -> None:
             pass
         title = driver.title or ""
         combined = f"{title}\n{page_text}"
+        wait_for_security_verification(driver)
         for marker in PAGE_ERROR_MARKERS:
             if marker in combined:
                 raise SystemExit(f"站点暂时无法访问：{marker}")
