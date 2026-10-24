@@ -84,6 +84,38 @@ class ServerTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["code"], "TEST-CODE")
+        self.assertEqual(
+            response.get_json()["base_url"], "https://web1.52pokemon.cc"
+        )
+
+    def test_admin_can_change_purchase_site(self) -> None:
+        self.login()
+        with self.client.session_transaction() as session:
+            session["csrf"] = "site-csrf"
+        response = self.client.post(
+            "/admin/settings",
+            data={
+                "csrf": "site-csrf",
+                "base_url": "https://love3.p6m6.com/",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            self.app_module.get_pokemon_base_url(), "https://love3.p6m6.com"
+        )
+
+    def test_invalid_purchase_site_is_rejected(self) -> None:
+        self.login()
+        with self.client.session_transaction() as session:
+            session["csrf"] = "site-csrf"
+        response = self.client.post(
+            "/admin/settings",
+            data={"csrf": "site-csrf", "base_url": "web1.52pokemon.cc"},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            self.app_module.get_pokemon_base_url(), "https://web1.52pokemon.cc"
+        )
 
     def test_expired_coupon_is_rejected(self) -> None:
         self.set_coupon(
