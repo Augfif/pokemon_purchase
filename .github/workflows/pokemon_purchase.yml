@@ -86,11 +86,11 @@ jobs:
           echo "Could not persist pool.db"
           exit 1
 
-      - name: Upload failure screenshots
-        if: failure()
+      - name: Upload screenshots
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pokemon-failure-${{ github.run_id }}
+          name: pokemon-screenshots-${{ github.run_id }}
           path: screenshots/
-          retention-days: 3
+          retention-days: 7
           if-no-files-found: ignore
