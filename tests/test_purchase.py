@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +13,9 @@ class FakeDriver:
     def __init__(self) -> None:
         self.quit_called = False
         self.screenshots: list[str] = []
+        self.title = ""
+        self.current_url = ""
+        self.page_source = ""
 
     def save_screenshot(self, path: str) -> bool:
         Path(path).write_bytes(b"fake-png")
@@ -23,6 +27,14 @@ class FakeDriver:
 
 
 class PurchaseScreenshotTests(unittest.TestCase):
+    def test_slider_verification_is_reported_in_headless_mode(self) -> None:
+        driver = FakeDriver()
+        driver.page_source = '<script src="/_guard/html.js?js=slider_html"></script>'
+        with patch.dict(os.environ, {"POKEMON_HEADLESS": "1"}):
+            with self.assertRaises(purchase.PurchaseFailure) as raised:
+                purchase.wait_for_security_verification(driver)
+        self.assertEqual(raised.exception.code, "security_verification_required")
+
     def test_failure_screenshot_is_saved_before_quit(self) -> None:
         driver = FakeDriver()
         with tempfile.TemporaryDirectory() as directory:
