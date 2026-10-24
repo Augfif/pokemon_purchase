@@ -10,6 +10,7 @@
       · {{ code_preview }}
     </div>
     {% if saved %}<div class="message success">兑换码已保存。</div>{% endif %}
+    {% if site_saved %}<div class="message success">网站地址已保存。</div>{% endif %}
     <form method="post" action="{{ prefix }}/admin/coupon">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <label>新兑换码<input name="code" maxlength="128" autocomplete="off" required></label>
@@ -24,6 +25,16 @@
     <form method="post" action="{{ prefix }}/admin/logout" style="margin-top: 18px">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <button class="secondary" type="submit">退出管理</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h2>购买网站地址</h2>
+    <p>Actions 会使用这里的地址访问登录页和购买流程。换域名后不需要修改代码。</p>
+    <form method="post" action="{{ prefix }}/admin/settings">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label>网站基础地址<input type="url" name="base_url" value="{{ pokemon_base_url }}" placeholder="https://web1.52pokemon.cc" required></label>
+      <button type="submit">保存网站地址</button>
     </form>
   </section>
 {% endblock %}
