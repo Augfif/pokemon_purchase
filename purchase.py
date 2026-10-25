@@ -610,6 +610,35 @@ def read_plan_card(driver: webdriver.Chrome, wait: WebDriverWait):
     raise SystemExit("套餐卡片在页面重绘期间持续失效") from last_error
 
 
+def try_open_plan_in_new_tab(driver: webdriver.Chrome, wait: WebDriverWait):
+    """Open /plan in a new tab so dashboard dialogs cannot intercept clicks."""
+    original_handle = driver.current_window_handle
+    opened = False
+    success = False
+    try:
+        driver.switch_to.new_window("tab")
+        opened = True
+        open_page(driver, f"{BASE_URL}/plan", "套餐页已在新标签页打开")
+        dismiss_blocking_overlays(driver)
+        card, button, price, button_text = read_plan_card(driver, wait)
+        print(f"已在新标签页定位套餐：{PLAN_NAME}，页面价格：{price}，操作：{button_text}。")
+        success = True
+        return card, button
+    except (TimeoutException, WebDriverException, SystemExit) as exc:
+        print(f"新标签页直接打开套餐页失败：{exc}")
+        return None
+    finally:
+        if opened and not success:
+            try:
+                driver.close()
+            except WebDriverException:
+                pass
+            try:
+                driver.switch_to.window(original_handle)
+            except WebDriverException:
+                pass
+
+
 def find_target_plan_elements(driver: webdriver.Chrome, action: str | None = None):
     """寻找最小的目标套餐卡片，避免误选同组中的“购前须知”。"""
     action_xpath = (
@@ -704,6 +733,10 @@ def login_if_needed(driver: webdriver.Chrome, non_interactive: bool = False) -> 
 def open_target_plan(driver: webdriver.Chrome):
     """从已登录首页点击套餐导航，返回目标套餐卡片与按钮。"""
     wait = WebDriverWait(driver, DEFAULT_WAIT_SECONDS)
+
+    new_tab_plan = try_open_plan_in_new_tab(driver, wait)
+    if new_tab_plan is not None:
+        return new_tab_plan
 
     if "/dashboard" not in driver.current_url:
         open_page(driver, f"{BASE_URL}/dashboard", "首页已打开")
