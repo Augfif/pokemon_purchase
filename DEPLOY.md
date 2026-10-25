@@ -64,6 +64,8 @@ Docker 服务只监听本机端口 `127.0.0.1:18082`。Nginx 使用现有 `18364
 - 成功、dry-run 和失败都会上传 `pokemon-screenshots-<run_id>` 截图产物；截图只保留在私有 Actions 产物中，不提交到仓库。
 - 首页遮罩关闭和套餐入口点击遇到 Vue/Vuetify 重绘导致的
   `Node with given id does not belong to the document` 时会重新定位并重试。
+- 登录接口 `api123.136470.xyz/api/v1/passport/auth/login` 返回 500 或页面未跳转时，
+  默认会重新提交登录 3 次；浏览器网络错误日志会随截图一起上传到私有产物。
 - GitHub Actions 使用无头 Chrome；遇到站点滑块、人机验证或验证码时会快速停止，
   不会尝试绕过。此时需要改用带可见浏览器的服务器 Runner，或提供已通过验证的
   会话。
