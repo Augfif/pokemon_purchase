@@ -89,6 +89,37 @@ class PurchaseScreenshotTests(unittest.TestCase):
             purchase.dismiss_blocking_overlays(driver)
         self.assertEqual(driver.click_attempts, 2)
 
+    def test_login_retries_after_temporary_timeout(self) -> None:
+        driver = FakeDriver()
+        driver.current_url = "https://web1.52pokemon.cc/login"
+        calls = {"submit": 0}
+
+        def submit(*_args, **_kwargs):
+            calls["submit"] += 1
+
+        with patch.dict(
+            os.environ,
+            {
+                "POKEMON_EMAIL": "probe@example.test",
+                "POKEMON_PASSWORD": "probe-password",
+            },
+        ):
+            with patch.object(purchase, "open_page"):
+                with patch.object(purchase, "submit_login_form", side_effect=submit):
+                    with patch.object(
+                        purchase,
+                        "wait_for_login_result",
+                        side_effect=[
+                            purchase.TimeoutException("temporary timeout"),
+                            None,
+                        ],
+                    ):
+                        with patch.object(purchase, "verify_login"):
+                            with patch.object(purchase, "pause"):
+                                with patch.object(purchase, "LOGIN_ATTEMPTS", 2):
+                                    purchase.login_if_needed(driver, non_interactive=True)
+        self.assertEqual(calls["submit"], 2)
+
     def test_failure_screenshot_is_saved_before_quit(self) -> None:
         driver = FakeDriver()
         with tempfile.TemporaryDirectory() as directory:
