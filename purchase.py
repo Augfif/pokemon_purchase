@@ -593,6 +593,23 @@ def click_element(driver: webdriver.Chrome, element) -> bool:
             return False
 
 
+def read_plan_card(driver: webdriver.Chrome, wait: WebDriverWait):
+    last_error = None
+    for attempt in range(3):
+        try:
+            card, button = wait.until(find_target_plan_elements)
+            price = card.find_element(
+                By.XPATH, ".//*[contains(normalize-space(.), '¥')]"
+            ).text
+            button_text = button.text.strip()
+            return card, button, price, button_text
+        except (StaleElementReferenceException, WebDriverException) as exc:
+            last_error = exc
+            if attempt < 2:
+                pause("套餐卡片正在重绘，重新定位")
+    raise SystemExit("套餐卡片在页面重绘期间持续失效") from last_error
+
+
 def find_target_plan_elements(driver: webdriver.Chrome, action: str | None = None):
     """寻找最小的目标套餐卡片，避免误选同组中的“购前须知”。"""
     action_xpath = (
@@ -687,6 +704,20 @@ def login_if_needed(driver: webdriver.Chrome, non_interactive: bool = False) -> 
 def open_target_plan(driver: webdriver.Chrome):
     """从已登录首页点击套餐导航，返回目标套餐卡片与按钮。"""
     wait = WebDriverWait(driver, DEFAULT_WAIT_SECONDS)
+
+    # The site exposes the plan page as a normal SPA route. Prefer that route
+    # over clicking a Vuetify navigation item whose event target can disappear
+    # during a dashboard render.
+    if "/plan" not in driver.current_url:
+        try:
+            open_page(driver, f"{BASE_URL}/plan", "套餐页已直接打开")
+            dismiss_blocking_overlays(driver)
+            card, button, price, button_text = read_plan_card(driver, wait)
+            print(f"已定位套餐：{PLAN_NAME}，页面价格：{price}，操作：{button_text}。")
+            return card, button
+        except (TimeoutException, WebDriverException, SystemExit) as exc:
+            print(f"直接打开套餐页失败：{exc}")
+
     if "/dashboard" not in driver.current_url:
         open_page(driver, f"{BASE_URL}/dashboard", "首页已打开")
     dismiss_blocking_overlays(driver)
