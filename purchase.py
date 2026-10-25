@@ -22,6 +22,7 @@ from selenium.common.exceptions import (
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 
@@ -354,27 +355,61 @@ def dismiss_blocking_overlays(driver: webdriver.Chrome) -> None:
         "//button[contains(@aria-label, '关闭') or contains(@aria-label, 'close') or "
         "contains(@title, '关闭') or contains(@title, 'Close') or "
         "normalize-space(.)='关闭' or normalize-space(.)='稍后提醒' or "
+        "normalize-space(.)='今日不再提醒' or normalize-space(.)='我知道了' or "
         "normalize-space(.)='Skip Intro']"
     )
-    for _ in range(3):
-        scrims = driver.find_elements(By.CSS_SELECTOR, ".v-overlay__scrim")
-        visible_scrims = [scrim for scrim in scrims if scrim.is_displayed()]
+    for _ in range(8):
+        try:
+            scrims = driver.find_elements(By.CSS_SELECTOR, ".v-overlay__scrim")
+            visible_scrims = [scrim for scrim in scrims if scrim.is_displayed()]
+        except WebDriverException:
+            pause("页面重绘，重新检查遮罩")
+            continue
         if not visible_scrims:
             return
 
-        close_buttons = driver.find_elements(By.XPATH, close_xpath)
-        visible_buttons = [
-            button
-            for button in close_buttons
-            if button.is_displayed() and button.is_enabled()
-        ]
-        if not visible_buttons:
-            raise SystemExit(
-                "检测到页面遮罩，但找不到可用的关闭按钮；请先手动关闭公告弹窗。"
-            )
+        clicked = False
+        try:
+            close_buttons = driver.find_elements(By.XPATH, close_xpath)
+            visible_buttons = [
+                button
+                for button in close_buttons
+                if button.is_displayed() and button.is_enabled()
+            ]
+        except WebDriverException:
+            visible_buttons = []
+        for button in reversed(visible_buttons):
+            try:
+                driver.execute_script(
+                    "arguments[0].scrollIntoView({block: 'center'}); "
+                    "arguments[0].click();",
+                    button,
+                )
+                clicked = True
+                break
+            except WebDriverException:
+                # Vue/Vuetify can replace the overlay while clicking.
+                continue
+        if clicked:
+            pause("已关闭页面遮罩")
+            continue
+        if visible_buttons:
+            # Re-query the button on the next pass instead of falling back to Esc.
+            pause("遮罩正在重绘，重新定位关闭按钮")
+            continue
 
-        visible_buttons[-1].click()
-        pause("已关闭页面遮罩")
+        try:
+            driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+            pause("已尝试按 Esc 关闭页面遮罩")
+        except WebDriverException:
+            continue
+
+    try:
+        scrims = driver.find_elements(By.CSS_SELECTOR, ".v-overlay__scrim")
+        if any(scrim.is_displayed() for scrim in scrims):
+            raise SystemExit("页面遮罩在多次重试后仍未关闭")
+    except WebDriverException:
+        pass
 
 
 def submit_login_form(driver: webdriver.Chrome, email: str, password: str) -> None:
@@ -517,11 +552,16 @@ def open_target_plan(driver: webdriver.Chrome):
                 plan_link = wait.until(
                     ec.element_to_be_clickable((By.XPATH, plan_link_xpath))
                 )
-                plan_link.click()
+                driver.execute_script(
+                    "arguments[0].scrollIntoView({block: 'center'}); "
+                    "arguments[0].click();",
+                    plan_link,
+                )
                 break
             except (
                 ElementClickInterceptedException,
                 StaleElementReferenceException,
+                WebDriverException,
             ):
                 if click_attempt == 3:
                     raise SystemExit(
@@ -780,9 +820,13 @@ def click_plan_action(driver: webdriver.Chrome, action: str) -> None:
             _card, button = WebDriverWait(driver, DEFAULT_WAIT_SECONDS).until(
                 lambda current: find_target_plan_elements(current, action)
             )
-            button.click()
+            driver.execute_script(
+                "arguments[0].scrollIntoView({block: 'center'}); "
+                "arguments[0].click();",
+                button,
+            )
             return
-        except StaleElementReferenceException as exc:
+        except (StaleElementReferenceException, WebDriverException) as exc:
             last_error = exc
             if attempt < 2:
                 pause("套餐卡片正在刷新，重新定位按钮")
