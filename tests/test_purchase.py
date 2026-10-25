@@ -35,6 +35,8 @@ class FakeScrim:
 
 
 class FakeButton:
+    text = "关闭"
+
     def is_displayed(self) -> bool:
         return True
 
