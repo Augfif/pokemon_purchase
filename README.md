@@ -94,6 +94,7 @@ python pool.py --db pool.db --stats
 - 首页公告遮罩和套餐导航遇到 Vue/Vuetify 重绘导致的 stale element 时会重新
   查找节点并重试，避免因为浏览器节点失效直接终止。
 - 套餐入口连续被弹窗拦截时，会尝试直接打开 `/plan` 路由作为回退。
+- 套餐卡片在加载动画中重绘时会重新查找，避免 `stale element reference` 中断。
 - 登录请求会识别 `passport/auth/login` 的 HTTP 500；默认最多连续提交 3 次，
   每次等待约 25 秒。失败时还会保存浏览器网络错误日志。
 - 每次 Actions 运行会在 `pokemon-screenshots-<run_id>` 产物中保留页面截图，便于排查登录或网络问题。
