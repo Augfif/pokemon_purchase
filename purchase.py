@@ -69,6 +69,10 @@ CHROMEDRIVER = _find_driver()
 PLAN_NAME = "入门精灵球"
 DEFAULT_WAIT_SECONDS = 30
 LOGIN_WAIT_SECONDS = int(os.environ.get("POKEMON_LOGIN_WAIT", "300"))
+LOGIN_ATTEMPT_WAIT_SECONDS = int(
+    os.environ.get("POKEMON_LOGIN_ATTEMPT_WAIT", "25")
+)
+LOGIN_ATTEMPTS = max(1, int(os.environ.get("POKEMON_LOGIN_ATTEMPTS", "3")))
 STEP_DELAY_SECONDS = float(os.environ.get("POKEMON_STEP_DELAY", "1.5"))
 PROFILE_DIR = Path(
     os.environ.get(
@@ -153,6 +157,36 @@ def save_page_screenshot(driver: webdriver.Chrome, label: str) -> Path | None:
     except Exception as exc:
         print(f"页面截图失败：{exc.__class__.__name__}")
         return None
+
+
+def save_browser_diagnostics(driver: webdriver.Chrome) -> Path | None:
+    """Save authentication/network error lines without form values."""
+    try:
+        entries = driver.get_log("browser")
+    except Exception:
+        return None
+    lines = [
+        f"{entry.get('level', 'INFO')} {entry.get('message', '')}"
+        for entry in entries
+        if any(
+            marker in entry.get("message", "")
+            for marker in (
+                "auth",
+                "login",
+                "passport",
+                "Failed to load resource",
+                "ERR_",
+                "500",
+            )
+        )
+    ]
+    if not lines:
+        return None
+    path = PROJECT_DIR / "screenshots" / f"browser-{time.time_ns()}.log"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"浏览器诊断：{path}")
+    return path
 
 
 def is_security_interstitial(driver: webdriver.Chrome) -> bool:
@@ -269,6 +303,10 @@ def setup_driver() -> webdriver.Chrome:
     options.add_argument("--no-sandbox")
     options.add_argument("--remote-debugging-port=0")
     options.add_argument("--disable-blink-features=AutomationControlled")
+    options.set_capability(
+        "goog:loggingPrefs",
+        {"browser": "ALL", "performance": "ALL"},
+    )
     if CHROME_BINARY and os.path.exists(CHROME_BINARY):
         options.binary_location = CHROME_BINARY
     elif CHROME_BINARY:
@@ -301,9 +339,12 @@ def wait_for_dashboard(driver: webdriver.Chrome, timeout: int = DEFAULT_WAIT_SEC
     wait.until(lambda current: "/dashboard" in current.current_url)
 
 
-def wait_for_login_result(driver: webdriver.Chrome) -> None:
+def wait_for_login_result(
+    driver: webdriver.Chrome,
+    timeout: int | None = None,
+) -> None:
     """等待登录跳转，同时识别账号错误、网络错误和站点故障。"""
-    deadline = time.monotonic() + LOGIN_WAIT_SECONDS
+    deadline = time.monotonic() + (timeout or LOGIN_WAIT_SECONDS)
     while time.monotonic() < deadline:
         if "/login" not in driver.current_url:
             return
@@ -321,6 +362,14 @@ def wait_for_login_result(driver: webdriver.Chrome) -> None:
         for marker in LOGIN_ERROR_MARKERS:
             if marker in combined:
                 raise SystemExit(f"自动登录失败：{marker}")
+        try:
+            browser_log = "\n".join(
+                entry.get("message", "") for entry in driver.get_log("browser")
+            )
+        except WebDriverException:
+            browser_log = ""
+        if "passport/auth/login" in browser_log and "status of 500" in browser_log:
+            raise TimeoutException("登录接口返回 HTTP 500")
         time.sleep(0.5)
     raise TimeoutException("等待登录跳转超时")
 
@@ -526,9 +575,28 @@ def login_if_needed(driver: webdriver.Chrome, non_interactive: bool = False) -> 
         verify_login(driver)
         return
 
-    submit_login_form(driver, email, password)
-    pause("已点击登录，等待跳转")
-    wait_for_login_result(driver)
+    last_error: Exception | None = None
+    for attempt in range(1, LOGIN_ATTEMPTS + 1):
+        if attempt > 1:
+            open_page(driver, f"{BASE_URL}/login", "登录页重新打开")
+            print(f"登录未跳转，重新提交（第 {attempt}/{LOGIN_ATTEMPTS} 次）。")
+        submit_login_form(driver, email, password)
+        pause("已点击登录，等待跳转")
+        try:
+            wait_for_login_result(
+                driver,
+                timeout=LOGIN_ATTEMPT_WAIT_SECONDS,
+            )
+            last_error = None
+            break
+        except TimeoutException as exc:
+            last_error = exc
+            if attempt < LOGIN_ATTEMPTS:
+                pause("登录接口未跳转，准备重试")
+                continue
+            raise
+    if last_error is not None:
+        raise last_error
     pause("登录成功")
     verify_login(driver)
     print("登录成功。")
@@ -953,6 +1021,7 @@ def run(
             return order_id
         except BaseException:
             save_page_screenshot(driver, "purchase-failure")
+            save_browser_diagnostics(driver)
             raise
     except TimeoutException as exc:
         raise PurchaseFailure(
