@@ -91,6 +91,8 @@ python pool.py --db pool.db --stats
 - 如果站点显示滑块/人机安全验证，GitHub Actions 会以
   `security_verification_required` 快速停止；需要可见浏览器或已通过验证的
   会话才能继续。
+- 首页公告遮罩和套餐导航遇到 Vue/Vuetify 重绘导致的 stale element 时会重新
+  查找节点并重试，避免因为浏览器节点失效直接终止。
 - 每次 Actions 运行会在 `pokemon-screenshots-<run_id>` 产物中保留页面截图，便于排查登录或网络问题。
 - 为适配站点当前证书异常，Chrome 启用了证书错误忽略参数；这仅作用于脚本自己的浏览器配置。
 - 实际下单前以订单页金额为准；`--dry-run` 不会点击“立即订购”。
