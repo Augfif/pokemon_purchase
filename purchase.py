@@ -550,22 +550,33 @@ def find_target_plan_elements(driver: webdriver.Chrome, action: str | None = Non
         ".//button[contains(normalize-space(.), '立即订购') or "
         "contains(normalize-space(.), '续费套餐')]"
     )
-    headings = driver.find_elements(
-        By.XPATH,
-        f"//*[normalize-space()='{PLAN_NAME}']",
-    )
+    try:
+        headings = driver.find_elements(
+            By.XPATH,
+            f"//*[normalize-space()='{PLAN_NAME}']",
+        )
+    except WebDriverException:
+        return False
     candidates = []
     for heading in headings:
-        for ancestor in heading.find_elements(By.XPATH, "ancestor::*"):
-            if not ancestor.is_displayed():
+        try:
+            ancestors = heading.find_elements(By.XPATH, "ancestor::*")
+        except WebDriverException:
+            continue
+        for ancestor in ancestors:
+            try:
+                if not ancestor.is_displayed():
+                    continue
+                for button in ancestor.find_elements(By.XPATH, action_xpath):
+                    if not button.is_displayed() or not button.is_enabled():
+                        continue
+                    button_text = button.text.strip()
+                    if action is not None and button_text != action:
+                        continue
+                    candidates.append((len(ancestor.text), ancestor, button))
+            except WebDriverException:
+                # The plan page can re-render while walking the card tree.
                 continue
-            for button in ancestor.find_elements(By.XPATH, action_xpath):
-                if not button.is_displayed() or not button.is_enabled():
-                    continue
-                button_text = button.text.strip()
-                if action is not None and button_text != action:
-                    continue
-                candidates.append((len(ancestor.text), ancestor, button))
 
     if not candidates:
         return False
@@ -708,9 +719,22 @@ def open_target_plan(driver: webdriver.Chrome):
             "站点可能把套餐路由重定向回首页。"
         ) from navigation_error
 
-    card, button = wait.until(find_target_plan_elements)
-    price = card.find_element(By.XPATH, ".//*[contains(normalize-space(.), '¥')]").text
-    print(f"已定位套餐：{PLAN_NAME}，页面价格：{price}，操作：{button.text.strip()}。")
+    last_error = None
+    for attempt in range(3):
+        try:
+            card, button = wait.until(find_target_plan_elements)
+            price = card.find_element(
+                By.XPATH, ".//*[contains(normalize-space(.), '¥')]"
+            ).text
+            button_text = button.text.strip()
+            break
+        except (StaleElementReferenceException, WebDriverException) as exc:
+            last_error = exc
+            if attempt < 2:
+                pause("套餐卡片正在重绘，重新定位")
+    else:
+        raise SystemExit("套餐卡片在页面重绘期间持续失效") from last_error
+    print(f"已定位套餐：{PLAN_NAME}，页面价格：{price}，操作：{button_text}。")
     return card, button
 
 
