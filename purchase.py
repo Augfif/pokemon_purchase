@@ -815,7 +815,17 @@ def open_target_plan(driver: webdriver.Chrome):
             "站点可能把套餐路由重定向回首页。"
         ) from navigation_error
 
-    card, button, price, button_text = read_plan_card(driver, wait)
+    try:
+        card, button, price, button_text = read_plan_card(driver, wait)
+    except SystemExit as exc:
+        print(f"套餐卡片未找到，当前 URL：{driver.current_url}")
+        print("导航失败，最后尝试重新打开 /plan。")
+        open_page(driver, f"{BASE_URL}/plan", "套餐页最后重试已打开")
+        dismiss_blocking_overlays(driver)
+        try:
+            card, button, price, button_text = read_plan_card(driver, wait)
+        except SystemExit:
+            raise exc
     print(f"已定位套餐：{PLAN_NAME}，页面价格：{price}，操作：{button_text}。")
     return card, button
 
