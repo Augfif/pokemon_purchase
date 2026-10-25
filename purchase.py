@@ -371,6 +371,20 @@ def wait_for_dashboard(driver: webdriver.Chrome, timeout: int = DEFAULT_WAIT_SEC
     wait.until(lambda current: "/dashboard" in current.current_url)
 
 
+def is_plan_route(driver: webdriver.Chrome) -> bool:
+    """Return whether the current URL is the plan list or a plan detail route."""
+    path = urlparse(driver.current_url or "").path
+    return path == "/plan" or path.startswith("/plan/")
+
+
+def wait_for_plan_route(
+    driver: webdriver.Chrome,
+    timeout: int = DEFAULT_WAIT_SECONDS,
+) -> None:
+    """Wait for SPA routing to finish without requiring plan data to be rendered."""
+    WebDriverWait(driver, timeout).until(is_plan_route)
+
+
 def wait_for_login_result(
     driver: webdriver.Chrome,
     timeout: int | None = None,
@@ -619,6 +633,7 @@ def try_open_plan_in_new_tab(driver: webdriver.Chrome, wait: WebDriverWait):
         driver.switch_to.new_window("tab")
         opened = True
         open_page(driver, f"{BASE_URL}/plan", "套餐页已在新标签页打开")
+        wait_for_plan_route(driver)
         dismiss_blocking_overlays(driver)
         card, button, price, button_text = read_plan_card(driver, wait)
         print(f"已在新标签页定位套餐：{PLAN_NAME}，页面价格：{price}，操作：{button_text}。")
@@ -626,6 +641,14 @@ def try_open_plan_in_new_tab(driver: webdriver.Chrome, wait: WebDriverWait):
         return card, button
     except (TimeoutException, WebDriverException, SystemExit) as exc:
         print(f"新标签页直接打开套餐页失败：{exc}")
+        try:
+            print(f"新标签页失败 URL：{driver.current_url}")
+            print(f"新标签页失败标题：{driver.title}")
+            page_text = driver.find_element(By.TAG_NAME, "body").text
+            print(f"新标签页失败页面文本：{page_text[:500]}")
+        except WebDriverException:
+            pass
+        save_page_screenshot(driver, "plan-new-tab-failure")
         return None
     finally:
         if opened and not success:
@@ -734,10 +757,6 @@ def open_target_plan(driver: webdriver.Chrome):
     """从已登录首页点击套餐导航，返回目标套餐卡片与按钮。"""
     wait = WebDriverWait(driver, DEFAULT_WAIT_SECONDS)
 
-    new_tab_plan = try_open_plan_in_new_tab(driver, wait)
-    if new_tab_plan is not None:
-        return new_tab_plan
-
     if "/dashboard" not in driver.current_url:
         open_page(driver, f"{BASE_URL}/dashboard", "首页已打开")
     dismiss_blocking_overlays(driver)
@@ -768,10 +787,7 @@ def open_target_plan(driver: webdriver.Chrome):
                 dismiss_blocking_overlays(driver)
         pause("已点击套餐购买，等待页面加载")
         try:
-            wait.until(
-                lambda current: "/dashboard" not in current.current_url
-                and bool(find_target_plan_elements(current))
-            )
+            wait_for_plan_route(driver)
             navigation_error = None
             break
         except TimeoutException as exc:
@@ -807,9 +823,7 @@ def open_target_plan(driver: webdriver.Chrome):
             if clicked_entry:
                 pause(f"已点击{label}入口")
                 try:
-                    WebDriverWait(driver, 8).until(
-                        lambda current: bool(find_target_plan_elements(current))
-                    )
+                    wait_for_plan_route(driver, timeout=8)
                     navigation_error = None
                     break
                 except (TimeoutException, WebDriverException):
@@ -820,13 +834,16 @@ def open_target_plan(driver: webdriver.Chrome):
         try:
             open_page(driver, f"{BASE_URL}/plan", "套餐页已直接打开")
             dismiss_blocking_overlays(driver)
-            WebDriverWait(driver, DEFAULT_WAIT_SECONDS).until(
-                lambda current: "/dashboard" not in current.current_url
-                and bool(find_target_plan_elements(current))
-            )
+            wait_for_plan_route(driver)
             navigation_error = None
         except (TimeoutException, WebDriverException, SystemExit) as exc:
             navigation_error = exc
+
+    if navigation_error is not None:
+        print("常规套餐导航未生效，最后尝试独立标签页并保存诊断。")
+        new_tab_plan = try_open_plan_in_new_tab(driver, wait)
+        if new_tab_plan is not None:
+            return new_tab_plan
 
     if navigation_error is not None:
         screenshot_path = Path(__file__).resolve().parent / "screenshots" / "plan-load-failure.png"
@@ -851,14 +868,16 @@ def open_target_plan(driver: webdriver.Chrome):
     try:
         card, button, price, button_text = read_plan_card(driver, wait)
     except SystemExit as exc:
-        print(f"套餐卡片未找到，当前 URL：{driver.current_url}")
-        print("导航失败，最后尝试重新打开 /plan。")
-        open_page(driver, f"{BASE_URL}/plan", "套餐页最后重试已打开")
-        dismiss_blocking_overlays(driver)
         try:
-            card, button, price, button_text = read_plan_card(driver, wait)
-        except SystemExit:
-            raise exc
+            page_text = driver.find_element(By.TAG_NAME, "body").text
+        except WebDriverException:
+            page_text = ""
+        print(f"套餐页面已打开，但未找到套餐卡片；当前 URL：{driver.current_url}")
+        print(f"套餐页页面文本：{page_text[:500]}")
+        save_page_screenshot(driver, "plan-card-missing")
+        raise SystemExit(
+            f"已进入套餐页，但未找到“{PLAN_NAME}”；当前页面：{driver.current_url}"
+        ) from exc
     print(f"已定位套餐：{PLAN_NAME}，页面价格：{price}，操作：{button_text}。")
     return card, button
 

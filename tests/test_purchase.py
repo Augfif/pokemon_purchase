@@ -77,6 +77,17 @@ class PurchaseScreenshotTests(unittest.TestCase):
         finally:
             purchase.set_base_url(original)
 
+    def test_plan_route_detection_requires_plan_segment(self) -> None:
+        driver = FakeDriver()
+        driver.current_url = "https://web1.52pokemon.cc/plan"
+        self.assertTrue(purchase.is_plan_route(driver))
+
+        driver.current_url = "https://web1.52pokemon.cc/plan/12"
+        self.assertTrue(purchase.is_plan_route(driver))
+
+        driver.current_url = "https://web1.52pokemon.cc/dashboard?next=/plan"
+        self.assertFalse(purchase.is_plan_route(driver))
+
     def test_slider_verification_is_reported_in_headless_mode(self) -> None:
         driver = FakeDriver()
         driver.page_source = '<script src="/_guard/html.js?js=slider_html"></script>'
