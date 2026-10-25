@@ -26,6 +26,44 @@ class FakeDriver:
         self.quit_called = True
 
 
+class FakeScrim:
+    def __init__(self) -> None:
+        self.visible = True
+
+    def is_displayed(self) -> bool:
+        return self.visible
+
+
+class FakeButton:
+    def is_displayed(self) -> bool:
+        return True
+
+    def is_enabled(self) -> bool:
+        return True
+
+
+class OverlayDriver:
+    def __init__(self) -> None:
+        self.scrim = FakeScrim()
+        self.click_attempts = 0
+
+    def find_elements(self, by, selector):
+        if selector == ".v-overlay__scrim":
+            return [self.scrim]
+        if by == purchase.By.XPATH and "关闭" in selector:
+            return [FakeButton()]
+        return []
+
+    def execute_script(self, _script, _element):
+        self.click_attempts += 1
+        if self.click_attempts == 1:
+            raise purchase.WebDriverException("stale overlay node")
+        self.scrim.visible = False
+
+    def find_element(self, _by, _selector):
+        raise AssertionError("Escape fallback should not be needed")
+
+
 class PurchaseScreenshotTests(unittest.TestCase):
     def test_base_url_can_change_at_runtime(self) -> None:
         original = purchase.BASE_URL
@@ -44,6 +82,12 @@ class PurchaseScreenshotTests(unittest.TestCase):
             with self.assertRaises(purchase.PurchaseFailure) as raised:
                 purchase.wait_for_security_verification(driver)
         self.assertEqual(raised.exception.code, "security_verification_required")
+
+    def test_overlay_click_retries_stale_node(self) -> None:
+        driver = OverlayDriver()
+        with patch.object(purchase, "STEP_DELAY_SECONDS", 0):
+            purchase.dismiss_blocking_overlays(driver)
+        self.assertEqual(driver.click_attempts, 2)
 
     def test_failure_screenshot_is_saved_before_quit(self) -> None:
         driver = FakeDriver()
