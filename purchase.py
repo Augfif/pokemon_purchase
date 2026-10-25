@@ -576,6 +576,23 @@ def submit_login_form(driver: webdriver.Chrome, email: str, password: str) -> No
     raise SystemExit("登录表单未能提交。") from last_error
 
 
+def click_element(driver: webdriver.Chrome, element) -> bool:
+    """Try a native click first so Vue Router receives a real pointer event."""
+    try:
+        element.click()
+        return True
+    except (ElementClickInterceptedException, StaleElementReferenceException, WebDriverException):
+        try:
+            driver.execute_script(
+                "arguments[0].scrollIntoView({block: 'center'}); "
+                "arguments[0].click();",
+                element,
+            )
+            return True
+        except WebDriverException:
+            return False
+
+
 def find_target_plan_elements(driver: webdriver.Chrome, action: str | None = None):
     """寻找最小的目标套餐卡片，避免误选同组中的“购前须知”。"""
     action_xpath = (
@@ -685,11 +702,8 @@ def open_target_plan(driver: webdriver.Chrome):
                 plan_link = wait.until(
                     ec.element_to_be_clickable((By.XPATH, plan_link_xpath))
                 )
-                driver.execute_script(
-                    "arguments[0].scrollIntoView({block: 'center'}); "
-                    "arguments[0].click();",
-                    plan_link,
-                )
+                if not click_element(driver, plan_link):
+                    raise StaleElementReferenceException("套餐入口点击失败")
                 break
             except (
                 ElementClickInterceptedException,
@@ -736,16 +750,9 @@ def open_target_plan(driver: webdriver.Chrome):
                 visible_entries = []
             clicked_entry = False
             for entry in reversed(visible_entries):
-                try:
-                    driver.execute_script(
-                        "arguments[0].scrollIntoView({block: 'center'}); "
-                        "arguments[0].click();",
-                        entry,
-                    )
+                if click_element(driver, entry):
                     clicked_entry = True
                     break
-                except WebDriverException:
-                    continue
             if clicked_entry:
                 pause(f"已点击{label}入口")
                 try:
@@ -1018,11 +1025,8 @@ def click_plan_action(driver: webdriver.Chrome, action: str) -> None:
             _card, button = WebDriverWait(driver, DEFAULT_WAIT_SECONDS).until(
                 lambda current: find_target_plan_elements(current, action)
             )
-            driver.execute_script(
-                "arguments[0].scrollIntoView({block: 'center'}); "
-                "arguments[0].click();",
-                button,
-            )
+            if not click_element(driver, button):
+                raise StaleElementReferenceException("套餐按钮点击失败")
             return
         except (StaleElementReferenceException, WebDriverException) as exc:
             last_error = exc
