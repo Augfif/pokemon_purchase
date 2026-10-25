@@ -4,6 +4,7 @@
 """
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -186,6 +187,37 @@ def save_browser_diagnostics(driver: webdriver.Chrome) -> Path | None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
     print(f"浏览器诊断：{path}")
+    return path
+
+
+def save_navigation_diagnostics(driver: webdriver.Chrome) -> Path | None:
+    """Record links/buttons around the dashboard purchase entry."""
+    try:
+        items = driver.execute_script(
+            """
+            return Array.from(document.querySelectorAll('a,button,[role="button"]'))
+              .map(e => ({
+                tag: e.tagName,
+                text: (e.innerText || e.textContent || '').trim(),
+                href: e.getAttribute('href') || '',
+                aria: e.getAttribute('aria-label') || '',
+                role: e.getAttribute('role') || '',
+                cls: e.className || ''
+              }))
+              .filter(x => /套餐|购买|开通|plan|shop|order/i.test(
+                x.text + ' ' + x.href + ' ' + x.aria + ' ' + x.cls
+              ));
+            """
+        )
+    except Exception:
+        return None
+    path = PROJECT_DIR / "screenshots" / f"navigation-{time.time_ns()}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(items, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print(f"导航诊断：{path}")
     return path
 
 
@@ -1120,6 +1152,7 @@ def run(
         except BaseException:
             save_page_screenshot(driver, "purchase-failure")
             save_browser_diagnostics(driver)
+            save_navigation_diagnostics(driver)
             raise
     except TimeoutException as exc:
         raise PurchaseFailure(
