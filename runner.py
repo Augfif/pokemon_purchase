@@ -81,7 +81,9 @@ def _classify_failure(exc: BaseException, values: list[str]) -> tuple[str, bool]
         for marker in ("超时", "timeout", "连接关闭", "站点暂时", "网络", "502")
     ):
         return "site_unavailable", True
-    return "purchase_failed", False
+    # Generic page/automation failures should not consume an account. They are
+    # retryable; explicit authentication and verification failures stay blocked.
+    return "purchase_failed", True
 
 
 def parse_args() -> argparse.Namespace:
