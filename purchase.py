@@ -687,6 +687,45 @@ def open_target_plan(driver: webdriver.Chrome):
             break
 
     if navigation_error is not None:
+        print("套餐导航未生效，尝试首页的开通/购买套餐入口。")
+        for label in ("开通套餐", "购买套餐"):
+            try:
+                entries = driver.find_elements(
+                    By.XPATH,
+                    "//*[self::button or self::a or @role='button']"
+                    f"[contains(normalize-space(.), '{label}')]",
+                )
+                visible_entries = [
+                    entry
+                    for entry in entries
+                    if entry.is_displayed() and entry.is_enabled()
+                ]
+            except WebDriverException:
+                visible_entries = []
+            clicked_entry = False
+            for entry in reversed(visible_entries):
+                try:
+                    driver.execute_script(
+                        "arguments[0].scrollIntoView({block: 'center'}); "
+                        "arguments[0].click();",
+                        entry,
+                    )
+                    clicked_entry = True
+                    break
+                except WebDriverException:
+                    continue
+            if clicked_entry:
+                pause(f"已点击{label}入口")
+                try:
+                    WebDriverWait(driver, 8).until(
+                        lambda current: bool(find_target_plan_elements(current))
+                    )
+                    navigation_error = None
+                    break
+                except (TimeoutException, WebDriverException):
+                    print(f"{label}入口仍未进入套餐页，继续尝试下一个入口。")
+
+    if navigation_error is not None:
         print("套餐入口点击未生效，尝试直接打开套餐路由。")
         try:
             open_page(driver, f"{BASE_URL}/plan", "套餐页已直接打开")
