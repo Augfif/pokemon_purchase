@@ -93,6 +93,8 @@ python pool.py --db pool.db --stats
   会话才能继续。
 - 首页公告遮罩和套餐导航遇到 Vue/Vuetify 重绘导致的 stale element 时会重新
   查找节点并重试，避免因为浏览器节点失效直接终止。
+- 登录请求会识别 `passport/auth/login` 的 HTTP 500；默认最多连续提交 3 次，
+  每次等待约 25 秒。失败时还会保存浏览器网络错误日志。
 - 每次 Actions 运行会在 `pokemon-screenshots-<run_id>` 产物中保留页面截图，便于排查登录或网络问题。
 - 为适配站点当前证书异常，Chrome 启用了证书错误忽略参数；这仅作用于脚本自己的浏览器配置。
 - 实际下单前以订单页金额为准；`--dry-run` 不会点击“立即订购”。
