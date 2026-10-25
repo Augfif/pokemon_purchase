@@ -401,11 +401,11 @@ def verify_login(driver: webdriver.Chrome, timeout: int = DEFAULT_WAIT_SECONDS) 
 def dismiss_blocking_overlays(driver: webdriver.Chrome) -> None:
     """关闭首页公告等遮罩，避免拦截套餐导航点击。"""
     close_xpath = (
-        "//button[contains(@aria-label, '关闭') or contains(@aria-label, 'close') or "
+        "//*[self::button or @role='button'][contains(@aria-label, '关闭') or contains(@aria-label, 'close') or "
         "contains(@title, '关闭') or contains(@title, 'Close') or "
         "normalize-space(.)='关闭' or normalize-space(.)='稍后提醒' or "
         "normalize-space(.)='今日不再提醒' or normalize-space(.)='我知道了' or "
-        "normalize-space(.)='Skip Intro']"
+        "normalize-space(.)='Skip Intro' or normalize-space(.)='不再提示']"
     )
     for _ in range(8):
         try:
@@ -427,7 +427,18 @@ def dismiss_blocking_overlays(driver: webdriver.Chrome) -> None:
             ]
         except WebDriverException:
             visible_buttons = []
-        for button in reversed(visible_buttons):
+        def priority(button):
+            try:
+                text = (button.text or "").strip()
+            except WebDriverException:
+                return 3
+            if "今日不再提醒" in text or "不再提示" in text:
+                return 0
+            if text in {"关闭", "稍后提醒", "我知道了", "Skip Intro"}:
+                return 1
+            return 2
+
+        for button in sorted(visible_buttons, key=priority):
             try:
                 driver.execute_script(
                     "arguments[0].scrollIntoView({block: 'center'}); "
@@ -441,6 +452,17 @@ def dismiss_blocking_overlays(driver: webdriver.Chrome) -> None:
                 continue
         if clicked:
             pause("已关闭页面遮罩")
+            try:
+                WebDriverWait(driver, 4).until(
+                    lambda current: not any(
+                        scrim.is_displayed()
+                        for scrim in current.find_elements(
+                            By.CSS_SELECTOR, ".v-overlay__scrim"
+                        )
+                    )
+                )
+            except (TimeoutException, WebDriverException):
+                pass
             continue
         if visible_buttons:
             # Re-query the button on the next pass instead of falling back to Esc.
@@ -652,6 +674,19 @@ def open_target_plan(driver: webdriver.Chrome):
                 pause("等待首页稳定后重试套餐导航")
                 continue
             break
+
+    if navigation_error is not None:
+        print("套餐入口点击未生效，尝试直接打开套餐路由。")
+        try:
+            open_page(driver, f"{BASE_URL}/plan", "套餐页已直接打开")
+            dismiss_blocking_overlays(driver)
+            WebDriverWait(driver, DEFAULT_WAIT_SECONDS).until(
+                lambda current: "/dashboard" not in current.current_url
+                and bool(find_target_plan_elements(current))
+            )
+            navigation_error = None
+        except (TimeoutException, WebDriverException, SystemExit) as exc:
+            navigation_error = exc
 
     if navigation_error is not None:
         screenshot_path = Path(__file__).resolve().parent / "screenshots" / "plan-load-failure.png"
